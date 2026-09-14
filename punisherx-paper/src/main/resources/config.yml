@@ -142,7 +142,7 @@ unjail:
     # * "unjail" - location coordinates set in unjail_location (/setunjail)
     # * "last_location" - last location before receiving the penalty
     # * "bed" - last bed spawn location
-    # * "essx" - spawn location set in the EssentialsX or FoliEssentials plugin (/setspawn)
+    # * "essx" - spawn location set in the EssentialsX or EssentialsF plugin (/setspawn)
     # * "world" - default world spawn point (/setworldspawn)
     set: unjail
 
@@ -161,6 +161,9 @@ notifications:
 # /********************************************/
 
 reports:
+  # /reports lists open reports; /reports history lists resolved/rejected reports.
+  # Closing a report allows its author to submit another one.
+  page-size: 10
   # Paper 1.21.6+ uses the native Dialog form. Older Paper versions and
   # Spigot automatically use the inventory GUI.
   use-dialogs: true

@@ -48,6 +48,11 @@ class ReportCommand(private val plugin: PunisherX) : BasicCommand {
             return
         }
 
+        if (target != null && args.size > 1) {
+            plugin.reportService.submitAndNotify(sender, target, args.drop(1).joinToString(" "))
+            return
+        }
+
         val useDialogs = plugin.config.getBoolean("reports.use-dialogs", true) &&
             plugin.versionCompatibility.supports(VersionCompatibility.CompatibilityFlag.DIALOGS)
         if (useDialogs) {

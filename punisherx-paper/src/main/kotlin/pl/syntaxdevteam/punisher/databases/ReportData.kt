@@ -17,7 +17,11 @@ data class ReportData(
     val player: UUID,
     val suspect: UUID,
     val reason: String,
-    val filedAt: Instant
+    val filedAt: Instant,
+    val status: String = "OPEN",
+    val handledBy: String? = null,
+    val note: String? = null,
+    val handledAt: Instant? = null
 ) {
     fun toSummary(
         zoneId: ZoneId = ZoneId.systemDefault(),

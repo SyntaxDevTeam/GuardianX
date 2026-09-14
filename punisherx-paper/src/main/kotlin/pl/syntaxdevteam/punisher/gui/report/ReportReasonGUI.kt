@@ -31,7 +31,7 @@ class ReportReasonGUI(plugin: PunisherX) : BaseGUI(plugin) {
     }
 
     private fun openPaged(player: Player, target: OfflinePlayer, page: Int, reasons: List<String>) {
-        val perPage = 27
+        val perPage = centerSlots.size
         val totalPages = if (reasons.isEmpty()) 1 else (reasons.size - 1) / perPage + 1
         val currentPage = page.coerceIn(0, totalPages - 1)
         val startIndex = currentPage * perPage

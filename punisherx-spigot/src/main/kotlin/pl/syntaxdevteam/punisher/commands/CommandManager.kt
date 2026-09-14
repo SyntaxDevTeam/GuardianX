@@ -29,6 +29,7 @@ class CommandManager(private val plugin: PunisherX) {
         register("panel", PanelCommand(plugin))
         register("langfix", PlaceholderFixCommand(plugin))
         register("report", ReportCommand(plugin))
+        register("reports", ReportsCommand(plugin))
     }
 
     private fun register(name: String, command: BasicCommand) {

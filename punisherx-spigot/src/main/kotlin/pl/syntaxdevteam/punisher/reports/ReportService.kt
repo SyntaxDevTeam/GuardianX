@@ -33,7 +33,7 @@ class ReportService(private val plugin: PunisherX) {
         if (reporter.uniqueId == target.uniqueId) {
             return ReportSubmissionResult(ReportSubmissionStatus.SELF_REPORT)
         }
-        if (reason.length !in 3..255) {
+        if (reason.length !in 3..255 || reason.any { it.isISOControl() }) {
             return ReportSubmissionResult(ReportSubmissionStatus.INVALID_REASON)
         }
 

@@ -45,6 +45,11 @@ class ReportCommand(private val plugin: PunisherX) : BasicCommand {
             return
         }
 
+        if (target != null && args.size > 1) {
+            plugin.reportService.submitAndNotify(sender, target, args.drop(1).joinToString(" "))
+            return
+        }
+
         if (target == null) {
             ReportSelectorGUI(plugin).open(sender)
         } else {

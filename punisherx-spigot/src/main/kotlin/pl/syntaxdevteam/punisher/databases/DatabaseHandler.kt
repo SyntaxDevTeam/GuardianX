@@ -185,6 +185,14 @@ class DatabaseHandler(private val plugin: PunisherX) {
             )
         )
         db.createTable(reportsSchema)
+        // Separate table preserves existing reports without a destructive migration.
+        db.createTable(TableSchema("report_resolutions", listOf(
+            Column("reportId", "INTEGER PRIMARY KEY"),
+            Column("status", "VARCHAR(16) NOT NULL"),
+            Column("handledBy", "VARCHAR(64) NOT NULL"),
+            Column("note", "VARCHAR(255) NOT NULL"),
+            Column("handledAt", "BIGINT NOT NULL")
+        )))
 
         val bridgeQueueSchema = TableSchema(
             "bridge_events",
@@ -477,7 +485,7 @@ class DatabaseHandler(private val plugin: PunisherX) {
     fun hasReportByReporter(player: UUID): Boolean {
         return try {
             query(
-                "SELECT COUNT(*) AS reportCount FROM reports WHERE player = ?",
+                "SELECT COUNT(*) AS reportCount FROM reports WHERE player = ? AND NOT EXISTS (SELECT 1 FROM report_resolutions rr WHERE rr.reportId = reports.id)",
                 player.toString()
             ) { it.getInt("reportCount") }
                 .firstOrNull()
@@ -493,7 +501,7 @@ class DatabaseHandler(private val plugin: PunisherX) {
     fun submitReport(player: UUID, suspect: UUID, reason: String): ReportSubmissionResult {
         return try {
             val openReports = query(
-                "SELECT COUNT(*) AS reportCount FROM reports WHERE player = ?",
+                "SELECT COUNT(*) AS reportCount FROM reports WHERE player = ? AND NOT EXISTS (SELECT 1 FROM report_resolutions rr WHERE rr.reportId = reports.id)",
                 player.toString()
             ) { it.getInt("reportCount") }.firstOrNull() ?: 0
             if (openReports > 0) {
@@ -505,7 +513,7 @@ class DatabaseHandler(private val plugin: PunisherX) {
             }
 
             val suspectReportCount = query(
-                "SELECT COUNT(*) AS reportCount FROM reports WHERE suspect = ?",
+                "SELECT COUNT(*) AS reportCount FROM reports WHERE suspect = ? AND NOT EXISTS (SELECT 1 FROM report_resolutions rr WHERE rr.reportId = reports.id)",
                 suspect.toString()
             ) { it.getInt("reportCount") }.firstOrNull() ?: 1
             ReportSubmissionResult.Accepted(suspectReportCount)
@@ -513,6 +521,19 @@ class DatabaseHandler(private val plugin: PunisherX) {
             logger.err("Failed to submit report from $player against $suspect. ${e.message}")
             ReportSubmissionResult.DatabaseError
         }
+    }
+
+    @Synchronized
+    fun resolveReport(id: Int, status: String, handledBy: String, note: String): Boolean {
+        require(status == "RESOLVED" || status == "REJECTED")
+        require(note.length in 3..255)
+        val report = getReports(reportId = id).firstOrNull() ?: return false
+        if (report.status != "OPEN") return false
+        // The primary key prevents two admins (including on different servers)
+        // from overwriting each other's decision.
+        execute("INSERT INTO report_resolutions (reportId, status, handledBy, note, handledAt) VALUES (?, ?, ?, ?, ?)",
+            id, status, handledBy, note, System.currentTimeMillis())
+        return true
     }
 
     fun deleteReport(id: Int): Boolean {
@@ -525,16 +546,24 @@ class DatabaseHandler(private val plugin: PunisherX) {
         }
     }
 
-    fun getReports(limit: Int? = null, offset: Int? = null): List<ReportData> {
+    fun getReports(limit: Int? = null, offset: Int? = null, closed: Boolean = false, reportId: Int? = null): List<ReportData> {
         val supportsPagination = dbType in setOf(
             DatabaseType.MYSQL,
             DatabaseType.MARIADB,
             DatabaseType.POSTGRESQL,
-            DatabaseType.SQLITE
+            DatabaseType.SQLITE,
+            DatabaseType.H2
         )
 
-        var sql = "SELECT id, player, suspect, reason, filedAt FROM reports ORDER BY filedAt DESC, id DESC"
+        var sql = "SELECT r.id, r.player, r.suspect, r.reason, r.filedAt, rr.status, rr.handledBy, rr.note, rr.handledAt FROM reports r LEFT JOIN report_resolutions rr ON rr.reportId = r.id"
         val params = mutableListOf<Any>()
+        if (reportId != null) {
+            sql += " WHERE r.id = ?"
+            params.add(reportId)
+        } else {
+            sql += if (closed) " WHERE rr.reportId IS NOT NULL" else " WHERE rr.reportId IS NULL"
+        }
+        sql += " ORDER BY r.filedAt DESC, r.id DESC"
 
         if (supportsPagination && limit != null) {
             sql += " LIMIT ?"
@@ -566,12 +595,16 @@ class DatabaseHandler(private val plugin: PunisherX) {
                     player = playerId,
                     suspect = suspectId,
                     reason = rs.getString("reason"),
-                    filedAt = filedAt
+                    filedAt = filedAt,
+                    status = rs.getString("status") ?: "OPEN",
+                    handledBy = rs.getString("handledBy"),
+                    note = rs.getString("note"),
+                    handledAt = rs.getLong("handledAt").takeIf { !rs.wasNull() }?.let(Instant::ofEpochMilli)
                 )
             }.filterNotNull()
         } catch (e: Exception) {
             logger.err("Failed to fetch reports. ${e.message}")
-            emptyList()
+            throw e
         }
     }
 

@@ -177,6 +177,7 @@ class CommandManager(private val plugin: PunisherX) {
                 "Report a player for breaking rules",
                 ReportCommand(plugin)
             )
+            commands.register("reports", "Review and manage player reports", ReportsCommand(plugin))
             val aliases = plugin.config.getConfigurationSection("aliases")
             aliases?.getKeys(false)?.forEach { key ->
                 val commandName = aliases.getString(key) ?: key
